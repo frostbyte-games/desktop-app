@@ -1,4 +1,5 @@
 <script>
+  import App from "$lib/App.svelte";
   import Greet from "$lib/Greet.svelte";
 </script>
 
@@ -19,6 +20,7 @@
 <p>Click on the Tauri, Vite, and Svelte logos to learn more.</p>
 
 <div class="row">
+  <App />
   <Greet />
 </div>
 
