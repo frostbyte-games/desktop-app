@@ -11,7 +11,11 @@ use substrate_api_client::{
 
 #[tauri::command]
 fn balance() -> String {
-    env_logger::init();
+    // causes problems
+    // thread 'main' panicked at 'env_logger::init should not be called after logger initialized: SetLoggerError(())', /Users/michael.assaf/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.10.0/src/lib.rs:1154:16
+    // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    // fatal runtime error: failed to initiate panic, error 5
+    // env_logger::init();
 
     let client = JsonrpseeClient::with_default_url().unwrap();
     let signer = AccountKeyring::Alice.pair();
@@ -29,7 +33,7 @@ fn balance() -> String {
         .free;
     println!("[+] Account balance: {}", balance);
 
-    format!("Your balance is {} snowflakes!", balance)
+    format!("{}", balance)
 }
 
 #[tokio::main]
