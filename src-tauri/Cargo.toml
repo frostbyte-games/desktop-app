@@ -17,10 +17,17 @@ tauri-build = { version = "1.2", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.2", features = ["shell-open"] }
-codec = { package = "parity-scale-codec", version = "3.2", features = ['derive'] }
+codec = { package = "parity-scale-codec", version = "3.2", features = [
+    'derive',
+] }
 env_logger = "0.10.0"
 log = { version = "0.4.14" }
-tokio = { version = "1.23", features = ["rt-multi-thread", "macros", "time", "full"] }
+tokio = { version = "1.23", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "full",
+] }
 wabt = "0.10.0"
 
 # Substrate dependencies
@@ -30,15 +37,25 @@ kitchensink-runtime = { git = "https://github.com/paritytech/substrate.git", bra
 pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 pallet-identity = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
-sp-core = { features = ["full_crypto"], git = "https://github.com/paritytech/substrate.git", branch = "master" }
+node-primitives = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { features = [
+    "full_crypto",
+], git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 
 # local deps
-substrate-api-client = { git = "https://github.com/scs/substrate-api-client", features = ["tungstenite-client", "ws-client", "staking-xt"] }
+substrate-api-client = { git = "https://github.com/scs/substrate-api-client", features = [
+    "tungstenite-client",
+    "ws-client",
+    "staking-xt",
+] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+bip39_rs = "0.6.0-beta.1"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+secrets = "1.2.0"
 
 [features]
 # by default Tauri runs in production mode
