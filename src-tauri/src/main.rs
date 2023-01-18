@@ -5,9 +5,9 @@
 
 use codec::Compact;
 use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature};
-use pallet_identity::{Data, IdentityInfo, Registration};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
+use sp_core::crypto::Ss58Codec;
 use sp_core::{sr25519, Pair};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{generic::Era, AccountId32, MultiAddress};
@@ -15,10 +15,18 @@ use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
     GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
-type MaxRegistrarsOf<T> = <T as pallet_identity::Config>::MaxRegistrars;
-type MaxAdditionalFieldsOf<T> = <T as pallet_identity::Config>::MaxAdditionalFields;
 
 use node_primitives::{AccountId, AccountIndex};
+
+use serde::{Deserialize, Serialize};
+use std::{env, fs};
+
+#[derive(Serialize, Deserialize)]
+struct Keypair {
+    seed: String,
+    public_key: String,
+    address: String,
+}
 
 #[tauri::command]
 fn create_account(name: &str, password: &str) -> Result<(String, String), String> {
@@ -32,6 +40,37 @@ fn create_account(name: &str, password: &str) -> Result<(String, String), String
         let s = std::str::from_utf8(s).unwrap();
         let keypair = sr25519::Pair::generate_with_phrase(Some(s));
         let signer = sr25519::Pair::from_string(&keypair.1, None).unwrap();
+
+        // let seed = String::from_utf8(keypair.2.to_vec()).unwrap();
+
+        // Convert the keypair to a struct
+        let keypair_struct = Keypair {
+            seed: String::from(String::from_utf8_lossy(keypair.2.as_bytes())),
+            public_key: signer.public().to_string(),
+            address: signer.public().to_ss58check(),
+        };
+
+        // Serialize the struct as a JSON object
+        let keypair_json = serde_json::to_string(&keypair_struct).unwrap();
+
+        // Write the JSON object to a file on disk
+        // check if directory exists if it doesnt, create it
+        let app_data_dir = match env::var("APPDATA") {
+            Ok(val) => val,
+            Err(_) => match env::var("HOME") {
+                Ok(val) => val,
+                Err(e) => {
+                    return Err(format!("Error: {}", e));
+                }
+            },
+        };
+
+        let path = format!("{}/frostbyte", app_data_dir);
+
+        if !std::path::Path::new(&path).exists() {
+            fs::create_dir(&path).unwrap();
+        }
+        fs::write(format!("{}/keystore.json", path), keypair_json).unwrap();
 
         // create account on chain
         let client = JsonrpseeClient::with_default_url().unwrap();
@@ -99,61 +138,6 @@ fn create_account(name: &str, password: &str) -> Result<(String, String), String
             .unwrap();
         println!("[+] Extrinsic got included in block {:?}", block_hash);
 
-        // let nonce = api.get_nonce().unwrap();
-        // println!("[+] Account nonce: {}", nonce);
-
-        // let balance = api
-        //     .get_account_data(&signer.public().into())
-        //     .unwrap()
-        //     .unwrap()
-        //     .free;
-        // println!("[+] Account balance: {}", balance);
-
-        // let pgp_fingerprint: [u8; 20] = signer.public().as_array_ref()[12..].try_into().unwrap();
-
-        // let info = IdentityInfo::<MaxAdditionalFieldsOf<KitchensinkRuntime>> {
-        //     additional: Default::default(),
-        //     display: Data::Raw(name),
-        //     legal: Data::None,
-        //     web: Data::None,
-        //     riot: Data::None,
-        //     email: Data::None,
-        //     pgp_fingerprint: Some(pgp_fingerprint),
-        //     image: Data::None,
-        //     twitter: Data::None,
-        // };
-
-        // api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
-        //     signer.clone(),
-        // ));
-
-        // // set name for balance
-        // let xt: UncheckedExtrinsicV4<_, _, _, _> =
-        //     compose_extrinsic!(&api, "Identity", "set_identity", Box::new(info.clone()));
-        // println!("[+] Composed Extrinsic:\n {:?}\n", xt);
-
-        // // Send and watch extrinsic until InBlock.
-        // let _block_hash = api
-        //     .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
-        //     .unwrap()
-        //     .block_hash
-        //     .unwrap();
-
-        // // Get the storage value from the pallet. Check out the pallet itself to know it's type:
-        // // see https://github.com/paritytech/substrate/blob/e6768a3bd553ddbed12fe1a0e4a2ef8d4f8fdf52/frame/identity/src/lib.rs#L167
-        // type RegistrationType = Registration<
-        //     BalanceOf<KitchensinkRuntime>,
-        //     MaxRegistrarsOf<KitchensinkRuntime>,
-        //     MaxAdditionalFieldsOf<KitchensinkRuntime>,
-        // >;
-
-        // let registration: RegistrationType = api
-        //     .get_storage_map("Identity", "IdentityOf", signer.public(), None)
-        //     .unwrap()
-        //     .unwrap();
-        // println!("[+] Retrieved {:?}", registration);
-        // assert_eq!(registration.info, info);
-
         let pub_key_string = format!("{:?}", signer.public());
         Ok((pub_key_string, keypair.1))
     })
@@ -181,7 +165,6 @@ fn balance() -> String {
         .unwrap()
         .unwrap()
         .free;
-    println!("[+] Account balance: {}", balance);
 
     format!("{}", balance)
 }
