@@ -1,12 +1,14 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/tauri";
   import { writable } from "svelte/store";
+  import type { Keystore } from "./accounts";
 
   let pubKey = "";
   let mnemonic = "";
   let name = "";
   let password = "";
   const loading = writable(false);
+  let account: Keystore;
 
   async function createAccount() {
     loading.set(true);
@@ -15,6 +17,14 @@
     });
     loading.set(false);
   }
+
+  async function getAccounts() {
+    loading.set(true);
+    account = await invoke("get_accounts");
+    loading.set(false);
+  }
+
+  getAccounts();
 </script>
 
 <div class="col">
@@ -23,6 +33,11 @@
       <div class="loading-spinner" />
     </div>
   {:else}
+    <ul>
+      <li>Address: {account.public_key}</li>
+      <li>Signature: {account.signature}</li>
+      <li>Message: {account.message}</li>
+    </ul>
     <p>{password}</p>
     <p>{mnemonic}</p>
     <p>{pubKey}</p>

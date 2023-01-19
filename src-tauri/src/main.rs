@@ -8,8 +8,10 @@ use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCa
 use node_primitives::{AccountId, AccountIndex};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
-use sp_core::crypto::Ss58Codec;
-use sp_core::{sr25519, Pair};
+use sp_core::{
+    sr25519::{self, Public},
+    Pair,
+};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{generic::Era, AccountId32, MultiAddress};
 use std::{env, fs};
@@ -17,14 +19,15 @@ use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
     GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
+use tokio::fs::read_to_string;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-struct Keypair {
-    seed: String,
-    public_key: String,
-    address: String,
+struct Keystore {
+    public_key: Public,
+    signature: sr25519::Signature,
+    message: Vec<u8>,
 }
 
 #[tauri::command]
@@ -33,29 +36,23 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
         let s = s.as_bytes();
         let s = hex::encode(s);
         let keypair = sr25519::Pair::generate_with_phrase(Some(&s));
-        let signer = sr25519::Pair::from_string(&keypair.1, None).unwrap();
+        let pair: sr25519::Pair = keypair.0;
 
-        // Convert the keypair to a struct
-        let keypair_struct = Keypair {
-            seed: String::from(String::from_utf8_lossy(keypair.2.as_bytes())),
-            public_key: signer.public().to_string(),
-            address: signer.public().to_ss58check(),
+        let message = b"Frostbyte is awesome!";
+        // TODO sign and store message in keystore
+        let signature = pair.sign(message);
+        let keystore = Keystore {
+            public_key: pair.public(),
+            signature,
+            message: message.to_vec(),
         };
 
         // Serialize the struct as a JSON object
-        let keypair_json = serde_json::to_string(&keypair_struct).unwrap();
+        let keypair_json = serde_json::to_string(&keystore).unwrap();
 
         // Write the JSON object to a file on disk
         // check if directory exists if it doesnt, create it
-        let app_data_dir = match env::var("APPDATA") {
-            Ok(val) => val,
-            Err(_) => match env::var("HOME") {
-                Ok(val) => val,
-                Err(e) => {
-                    return Err(format!("Error: {}", e));
-                }
-            },
-        };
+        let app_data_dir = get_base_home_path()?;
 
         let path = format!("{}/frostbyte", app_data_dir);
 
@@ -77,7 +74,7 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
         ));
 
         let address: MultiAddress<AccountId, AccountIndex> =
-            get_signer_multi_addr(signer.public().into());
+            get_signer_multi_addr(pair.public().into());
 
         let (free, reserved) = init_balances();
 
@@ -128,7 +125,7 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
             .unwrap();
         println!("[+] Extrinsic got included in block {:?}", block_hash);
 
-        let pub_key_string = format!("{:?}", signer.public());
+        let pub_key_string = format!("{:?}", pair.public());
         let password = format!("{}", s);
         Ok((password, pub_key_string, keypair.1))
     })
@@ -160,12 +157,27 @@ fn balance() -> String {
     format!("{}", balance)
 }
 
+#[tauri::command]
+async fn get_accounts() -> Result<Keystore, String> {
+    let app_dir_path = get_base_home_path()?;
+    let path = format!("{}/frostbyte/keystore.json", app_dir_path);
+    let file_contents = read_to_string(path).await.map_err(|e| format!("{}", e))?;
+
+    let accounts: Keystore = serde_json::from_str(&file_contents).unwrap();
+
+    Ok(accounts)
+}
+
 #[tokio::main]
 async fn main() {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![create_account, balance])
+        .invoke_handler(tauri::generate_handler![
+            create_account,
+            balance,
+            get_accounts
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -182,4 +194,16 @@ fn init_balances() -> (Compact<u128>, Compact<u128>) {
 
 fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, AccountIndex> {
     MultiAddress::Id(signer)
+}
+
+fn get_base_home_path() -> Result<String, String> {
+    match env::var("APPDATA") {
+        Ok(val) => return Ok(val),
+        Err(_) => match env::var("HOME") {
+            Ok(val) => return Ok(val),
+            Err(e) => {
+                return Err(format!("Error: {}", e));
+            }
+        },
+    }
 }
