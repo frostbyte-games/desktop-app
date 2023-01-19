@@ -5,21 +5,20 @@
 
 use codec::Compact;
 use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature};
+use node_primitives::{AccountId, AccountIndex};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
 use sp_core::crypto::Ss58Codec;
 use sp_core::{sr25519, Pair};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{generic::Era, AccountId32, MultiAddress};
+use std::{env, fs};
 use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
     GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
 
-use node_primitives::{AccountId, AccountIndex};
-
 use serde::{Deserialize, Serialize};
-use std::{env, fs};
 
 #[derive(Serialize, Deserialize)]
 struct Keypair {
@@ -29,19 +28,12 @@ struct Keypair {
 }
 
 #[tauri::command]
-fn create_account(name: &str, password: &str) -> Result<(String, String), String> {
-    let password = password.as_bytes();
-    if password.len() != 32 {
-        return Err("Error: Password length must be 32 bytes".to_string());
-    }
-    let mut password: [u8; 32] = password.try_into().unwrap();
-    Secret::from(&mut password, |s| {
+fn create_account(name: &str) -> Result<(String, String, String), String> {
+    Secret::<[u8; 32]>::random(|s| {
         let s = s.as_bytes();
-        let s = std::str::from_utf8(s).unwrap();
-        let keypair = sr25519::Pair::generate_with_phrase(Some(s));
+        let s = hex::encode(s);
+        let keypair = sr25519::Pair::generate_with_phrase(Some(&s));
         let signer = sr25519::Pair::from_string(&keypair.1, None).unwrap();
-
-        // let seed = String::from_utf8(keypair.2.to_vec()).unwrap();
 
         // Convert the keypair to a struct
         let keypair_struct = Keypair {
@@ -128,8 +120,6 @@ fn create_account(name: &str, password: &str) -> Result<(String, String), String
         });
         let xt = api.compose_extrinsic_offline(call, signer_nonce);
 
-        println!("[+] Composed Extrinsic:\n {:?}\n", xt);
-
         // Send and watch extrinsic until in block (online).
         let block_hash = api
             .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
@@ -139,7 +129,8 @@ fn create_account(name: &str, password: &str) -> Result<(String, String), String
         println!("[+] Extrinsic got included in block {:?}", block_hash);
 
         let pub_key_string = format!("{:?}", signer.public());
-        Ok((pub_key_string, keypair.1))
+        let password = format!("{}", s);
+        Ok((password, pub_key_string, keypair.1))
     })
 }
 
