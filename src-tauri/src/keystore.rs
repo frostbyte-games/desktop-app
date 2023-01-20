@@ -10,11 +10,11 @@ use sp_runtime::app_crypto::{RuntimePublic, Ss58Codec};
 use sp_runtime::{AccountId32, MultiAddress};
 use std::io::{Read, Write};
 use std::{env, fs};
-use tokio::fs::read_to_string;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Keystore {
     pub public_key: String,
+    seed: [u8; schnorrkel::keys::MINI_SECRET_KEY_LENGTH], // this should match sp_core::sr25519::Seed
     signature: Signature,
     message: Vec<u8>,
 }
@@ -30,9 +30,12 @@ pub fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, Acc
     MultiAddress::Id(signer)
 }
 
-pub fn verify_keystore(keystore: &Keystore) -> bool {
+pub fn verify_and_fetch_keypair(keystore: &Keystore) -> Option<sr25519::Pair> {
     let public_key = Public::from_slice(&keystore.public_key.as_bytes()).unwrap();
-    public_key.verify(&keystore.message, &keystore.signature)
+    public_key.verify(&keystore.message, &keystore.signature);
+
+    let pair = sr25519::Pair::from_seed(&keystore.seed);
+    Some(pair)
 }
 
 pub async fn get_keypairs(master_password: &str) -> Result<Keystore, String> {
@@ -69,13 +72,13 @@ pub fn add_keypair(password: &str, master_password: &str) -> Result<Account, Str
     .unwrap();
     let key = key.to_vec();
     let key = String::from_utf8_lossy(&key);
-    let account = sr25519::Pair::generate_with_phrase(Some(&key));
-    let pair: sr25519::Pair = account.0;
+    let account_gen = sr25519::Pair::generate_with_phrase(Some(&key));
+    let pair: sr25519::Pair = account_gen.0;
 
     let account = Account {
         address: pair.public().into(),
         password: password.to_string(),
-        mnemonic: account.1,
+        mnemonic: account_gen.1,
     };
 
     let message = b"Frostbyte is awesome!";
@@ -85,6 +88,7 @@ pub fn add_keypair(password: &str, master_password: &str) -> Result<Account, Str
     let public_keys = String::from_utf8(public_keys.to_vec()).unwrap();
     let keystore = Keystore {
         public_key: public_keys,
+        seed: account_gen.2,
         signature,
         message: message.to_vec(),
     };

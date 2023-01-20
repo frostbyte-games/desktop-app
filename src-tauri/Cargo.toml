@@ -60,6 +60,7 @@ hex = "0.4.3"
 openssl = "0.10.45"
 sodiumoxide = "0.2.7"
 base64 = "0.21.0"
+schnorrkel = "0.10.2"
 
 [features]
 # by default Tauri runs in production mode
