@@ -1,26 +1,32 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/tauri";
   import { writable } from "svelte/store";
-  import type { Keystore } from "./accounts";
 
   let pubKey = "";
   let mnemonic = "";
   let name = "";
-  let password = "";
+  let masterPassword = "asdf";
   const loading = writable(false);
-  let account: Keystore;
+  let getAccountsResults: any = [];
 
   async function createAccount() {
     loading.set(true);
-    [password, pubKey, mnemonic] = await invoke("create_account", {
-      name
+    [pubKey, mnemonic] = await invoke("create_account", {
+      name,
+      masterPassword
     });
     loading.set(false);
   }
 
   async function getAccounts() {
     loading.set(true);
-    account = await invoke("get_accounts");
+    await invoke("get_accounts", { masterPassword })
+      .then((result) => {
+        getAccountsResults = (result as any).toString();
+      })
+      .catch((err) => {
+        getAccountsResults = "Error: " + err.toString();
+      });
     loading.set(false);
   }
 
@@ -33,17 +39,13 @@
       <div class="loading-spinner" />
     </div>
   {:else}
-    <ul>
-      <li>Address: {account.public_key}</li>
-      <li>Signature: {account.signature}</li>
-      <li>Message: {account.message}</li>
-    </ul>
-    <p>{password}</p>
+    <p>{getAccountsResults}</p>
     <p>{mnemonic}</p>
     <p>{pubKey}</p>
   {/if}
 
   <input type="text" bind:value={name} />
+  <input type="password" bind:value={masterPassword} />
   <button on:click={createAccount}>Create Account</button>
 </div>
 

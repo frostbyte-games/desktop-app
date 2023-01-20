@@ -1696,6 +1696,7 @@ dependencies = [
 name = "frostbyte-app"
 version = "0.0.0"
 dependencies = [
+ "base64 0.21.0",
  "bip39_rs",
  "env_logger",
  "frame-support",
@@ -1704,6 +1705,7 @@ dependencies = [
  "kitchensink-runtime",
  "log",
  "node-primitives",
+ "openssl",
  "pallet-balances",
  "pallet-identity",
  "pallet-staking",
@@ -1712,6 +1714,7 @@ dependencies = [
  "secrets",
  "serde",
  "serde_json",
+ "sodiumoxide",
  "sp-core",
  "sp-keyring",
  "sp-runtime",
@@ -2919,6 +2922,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
 dependencies = [
  "libsecp256k1-core",
+]
+
+[[package]]
+name = "libsodium-sys"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b779387cd56adfbc02ea4a668e704f729be8d6a6abd2c27ca5ee537849a92fd"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "walkdir",
 ]
 
 [[package]]
@@ -6032,6 +6047,18 @@ checksum = "02e2d2db9033d13a1567121ddd7a095ee144db4e1ca1b1bda3419bc0da294ebd"
 dependencies = [
  "libc",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "sodiumoxide"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e26be3acb6c2d9a7aac28482586a7856436af4cfe7100031d219de2d2ecb0028"
+dependencies = [
+ "ed25519",
+ "libc",
+ "libsodium-sys",
+ "serde",
 ]
 
 [[package]]

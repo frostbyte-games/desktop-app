@@ -3,63 +3,30 @@
     windows_subsystem = "windows"
 )]
 
+use base64::{self, Engine};
 use codec::Compact;
 use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature};
-use node_primitives::{AccountId, AccountIndex};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
-use sp_core::{
-    sr25519::{self, Public},
-    Pair,
-};
+use sp_core::sr25519::Public;
 use sp_keyring::AccountKeyring;
-use sp_runtime::{generic::Era, AccountId32, MultiAddress};
-use std::{env, fs};
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
+use std::env;
 use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
     GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
-use tokio::fs::read_to_string;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize)]
-struct Keystore {
-    public_key: Public,
-    signature: sr25519::Signature,
-    message: Vec<u8>,
-}
+mod keystore;
 
 #[tauri::command]
-fn create_account(name: &str) -> Result<(String, String, String), String> {
-    Secret::<[u8; 32]>::random(|s| {
-        let s = s.as_bytes();
-        let s = hex::encode(s);
-        let keypair = sr25519::Pair::generate_with_phrase(Some(&s));
-        let pair: sr25519::Pair = keypair.0;
+fn create_account(name: &str, master_password: &str) -> Result<(String, String, String), String> {
+    Secret::<[u8; 32]>::random(|password| {
+        let password = password.as_bytes();
+        let password = hex::encode(password);
+        let account = keystore::add_keypair(&password, master_password).unwrap();
 
-        let message = b"Frostbyte is awesome!";
-        // TODO sign and store message in keystore
-        let signature = pair.sign(message);
-        let keystore = Keystore {
-            public_key: pair.public(),
-            signature,
-            message: message.to_vec(),
-        };
-
-        // Serialize the struct as a JSON object
-        let keypair_json = serde_json::to_string(&keystore).unwrap();
-
-        // Write the JSON object to a file on disk
-        // check if directory exists if it doesnt, create it
-        let app_data_dir = get_base_home_path()?;
-
-        let path = format!("{}/frostbyte", app_data_dir);
-
-        if !std::path::Path::new(&path).exists() {
-            fs::create_dir(&path).unwrap();
-        }
-        fs::write(format!("{}/keystore.json", path), keypair_json).unwrap();
+        println!("account: {:?}", account);
 
         // create account on chain
         let client = JsonrpseeClient::with_default_url().unwrap();
@@ -73,16 +40,16 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
             alice_signer.clone(),
         ));
 
-        let address: MultiAddress<AccountId, AccountIndex> =
-            get_signer_multi_addr(pair.public().into());
-
         let (free, reserved) = init_balances();
+
+        let address = account.address.to_ss58check();
+        let multi_addr = keystore::get_signer_multi_addr(account.address);
 
         let xt = compose_extrinsic!(
             &api,
             "Balances",
             "set_balance",
-            Box::new(address.clone()),
+            Box::new(&multi_addr),
             Box::new(free.clone()),
             Box::new(reserved.clone())
         );
@@ -112,7 +79,7 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
 
         // Compose the extrinsic (offline).
         let call = RuntimeCall::Balances(BalancesCall::transfer {
-            dest: address,
+            dest: multi_addr,
             value: 500,
         });
         let xt = api.compose_extrinsic_offline(call, signer_nonce);
@@ -125,9 +92,8 @@ fn create_account(name: &str) -> Result<(String, String, String), String> {
             .unwrap();
         println!("[+] Extrinsic got included in block {:?}", block_hash);
 
-        let pub_key_string = format!("{:?}", pair.public());
-        let password = format!("{}", s);
-        Ok((password, pub_key_string, keypair.1))
+        let address = format!("{:?}", address);
+        Ok((account.password, address, account.mnemonic))
     })
 }
 
@@ -158,14 +124,11 @@ fn balance() -> String {
 }
 
 #[tauri::command]
-async fn get_accounts() -> Result<Keystore, String> {
-    let app_dir_path = get_base_home_path()?;
-    let path = format!("{}/frostbyte/keystore.json", app_dir_path);
-    let file_contents = read_to_string(path).await.map_err(|e| format!("{}", e))?;
+async fn get_accounts(master_password: &str) -> Result<String, String> {
+    let accounts = keystore::get_keypairs(master_password).await?;
+    let public_keys = accounts.public_key;
 
-    let accounts: Keystore = serde_json::from_str(&file_contents).unwrap();
-
-    Ok(accounts)
+    Ok(public_keys)
 }
 
 #[tokio::main]
@@ -190,20 +153,4 @@ fn init_balances() -> (Compact<u128>, Compact<u128>) {
     let reserved: Compact<u128> = Compact::from(reserved);
 
     (free, reserved)
-}
-
-fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, AccountIndex> {
-    MultiAddress::Id(signer)
-}
-
-fn get_base_home_path() -> Result<String, String> {
-    match env::var("APPDATA") {
-        Ok(val) => return Ok(val),
-        Err(_) => match env::var("HOME") {
-            Ok(val) => return Ok(val),
-            Err(e) => {
-                return Err(format!("Error: {}", e));
-            }
-        },
-    }
 }
