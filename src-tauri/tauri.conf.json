@@ -18,7 +18,7 @@
         "open": true
       },
       "fs": {
-        "scope": ["$APPDATA/frostbyte/*"],
+        "scope": ["$APPDATA/.frostbyte/*"],
         "readFile": true,
         "writeFile": true,
         "readDir": true,

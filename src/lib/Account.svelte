@@ -1,7 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/tauri";
   import { writable } from "svelte/store";
+  import Wallet from "./Wallet.svelte";
 
+  let activeAccount = "";
   let pubKey = "";
   let mnemonic = "";
   let name = "";
@@ -22,7 +24,7 @@
     loading.set(true);
     await invoke("get_accounts", { masterPassword })
       .then((result) => {
-        getAccountsResults = (result as any).toString();
+        getAccountsResults = result;
       })
       .catch((err) => {
         getAccountsResults = "Error: " + err.toString();
@@ -39,14 +41,19 @@
       <div class="loading-spinner" />
     </div>
   {:else}
-    <p>{getAccountsResults}</p>
+    <Wallet account={activeAccount} />
+    <input type="text" bind:value={name} />
+    <input type="password" bind:value={masterPassword} />
+    <button on:click={createAccount}>Create Account</button>
+    <select bind:value={activeAccount}>
+      {#each getAccountsResults as account}
+        <option value={account}>{account}</option>
+      {/each}
+    </select>
+
     <p>{mnemonic}</p>
     <p>{pubKey}</p>
   {/if}
-
-  <input type="text" bind:value={name} />
-  <input type="password" bind:value={masterPassword} />
-  <button on:click={createAccount}>Create Account</button>
 </div>
 
 <style>

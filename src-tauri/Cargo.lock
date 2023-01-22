@@ -1709,7 +1709,6 @@ dependencies = [
 name = "frostbyte-app"
 version = "0.0.0"
 dependencies = [
- "base64 0.21.0",
  "bip39_rs",
  "env_logger",
  "frame-support",
@@ -1736,6 +1735,7 @@ dependencies = [
  "substrate-api-client",
  "tauri",
  "tauri-build",
+ "tauri-plugin-window-state",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.16",
@@ -7217,6 +7217,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-window-state"
+version = "0.1.0"
+source = "git+https://github.com/tauri-apps/plugins-workspace?branch=dev#4ff7843581aced66b2c4e21a64e514e255b41cc4"
+dependencies = [
+ "bincode",
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror",
+]
+
+[[package]]
 name = "tauri-runtime"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7636,9 +7649,9 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "digest 0.10.6",
- "rand 0.8.5",
+ "rand 0.6.5",
  "static_assertions",
 ]
 

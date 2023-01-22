@@ -3,12 +3,10 @@
     windows_subsystem = "windows"
 )]
 
-use base64::{self, Engine};
 use codec::Compact;
 use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
-use sp_core::sr25519::Public;
 use sp_keyring::AccountKeyring;
 use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
 use std::env;
@@ -19,12 +17,27 @@ use substrate_api_client::{
 
 mod keystore;
 
+#[tokio::main]
+async fn main() {
+    tauri::async_runtime::set(tokio::runtime::Handle::current());
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            create_account,
+            balance,
+            get_accounts
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
 #[tauri::command]
 fn create_account(name: &str, master_password: &str) -> Result<(String, String, String), String> {
     Secret::<[u8; 32]>::random(|password| {
         let password = password.as_bytes();
         let password = hex::encode(password);
-        let account = keystore::add_keypair(&password, master_password).unwrap();
+        let account = keystore::add_keypair(name, &password, master_password).unwrap();
 
         println!("account: {:?}", account);
 
@@ -98,15 +111,22 @@ fn create_account(name: &str, master_password: &str) -> Result<(String, String, 
 }
 
 #[tauri::command]
-fn balance() -> String {
+fn balance(account: &str) -> String {
     // causes problems
     // thread 'main' panicked at 'env_logger::init should not be called after logger initialized: SetLoggerError(())', /Users/michael.assaf/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.10.0/src/lib.rs:1154:16
     // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
     // fatal runtime error: failed to initiate panic, error 5
     // env_logger::init();
 
+    if account.is_empty() {
+        return "".to_string();
+    }
+
     let client = JsonrpseeClient::with_default_url().unwrap();
-    let signer = AccountKeyring::Alice.pair();
+
+    println!("account: {:?}", account);
+    let signer = keystore::verify_and_fetch_keypair(&account).unwrap();
+
     let mut api =
         Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
             .unwrap();
@@ -124,25 +144,10 @@ fn balance() -> String {
 }
 
 #[tauri::command]
-async fn get_accounts(master_password: &str) -> Result<String, String> {
-    let accounts = keystore::get_keypairs(master_password).await?;
-    let public_keys = accounts.public_key;
+async fn get_accounts() -> Result<Vec<String>, String> {
+    let keystore = keystore::get_available_keypairs().await?;
 
-    Ok(public_keys)
-}
-
-#[tokio::main]
-async fn main() {
-    tauri::async_runtime::set(tokio::runtime::Handle::current());
-
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            create_account,
-            balance,
-            get_accounts
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    Ok(keystore)
 }
 
 fn init_balances() -> (Compact<u128>, Compact<u128>) {
