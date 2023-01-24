@@ -4,9 +4,14 @@
   import { invoke } from "@tauri-apps/api/tauri";
   import { onMount } from "svelte";
 
-  let wallet: Promise<string>;
+  type Wallet = {
+    address: string;
+    balance: string;
+  };
 
-  async function getBalance(account: string): Promise<string> {
+  let wallet: Promise<Wallet>;
+
+  async function getBalance(account: string): Promise<Wallet> {
     return await invoke("balance", { account });
   }
 
