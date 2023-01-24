@@ -4,11 +4,16 @@
 )]
 
 use codec::Compact;
-use kitchensink_runtime::{BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature};
+use frame_support::Serialize;
+use frame_system::offchain::Signer;
+use kitchensink_runtime::{
+    AccountId, BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature,
+};
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
+use sp_core::Pair;
 use sp_keyring::AccountKeyring;
-use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era, AccountId32};
 use std::env;
 use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
@@ -110,8 +115,14 @@ fn create_account(name: &str, master_password: &str) -> Result<(String, String, 
     })
 }
 
+#[derive(Serialize)]
+struct Wallet {
+    address: String,
+    balance: String,
+}
+
 #[tauri::command]
-fn balance(account: &str) -> String {
+fn balance(account: &str) -> Wallet {
     // causes problems
     // thread 'main' panicked at 'env_logger::init should not be called after logger initialized: SetLoggerError(())', /Users/michael.assaf/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.10.0/src/lib.rs:1154:16
     // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
@@ -119,28 +130,33 @@ fn balance(account: &str) -> String {
     // env_logger::init();
 
     if account.is_empty() {
-        return "".to_string();
+        return Wallet {
+            address: String::from(""),
+            balance: String::from(""),
+        };
     }
 
     let client = JsonrpseeClient::with_default_url().unwrap();
 
-    println!("account: {:?}", account);
-    let signer = keystore::verify_and_fetch_keypair(&account).unwrap();
+    let pair = keystore::verify_and_fetch_keypair(&account).unwrap();
 
     let mut api =
         Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
             .unwrap();
     api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
-        signer.clone(),
+        pair.clone(),
     ));
 
-    let balance = api
-        .get_account_data(&AccountKeyring::Alice.to_account_id())
-        .unwrap()
-        .unwrap()
-        .free;
+    let account: AccountId = pair.public().into();
 
-    format!("{}", balance)
+    let balance = api.get_account_data(&account).unwrap().unwrap().free;
+
+    let address = pair.public().to_ss58check();
+
+    return Wallet {
+        address,
+        balance: balance.to_string(),
+    };
 }
 
 #[tauri::command]

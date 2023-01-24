@@ -4,19 +4,22 @@
   import { invoke } from "@tauri-apps/api/tauri";
   import { onMount } from "svelte";
 
-  let balance = "";
+  let wallet: Promise<string>;
 
-  async function getBalance(): Promise<string> {
+  async function getBalance(account: string): Promise<string> {
     return await invoke("balance", { account });
   }
 
   onMount(async () => {
-    balance = await getBalance();
+    wallet = getBalance(account);
   });
+
+  $: wallet = getBalance(account);
 </script>
 
 <div class="col">
-  <p>{account} {balance} snowflakes!</p>
+  {#await wallet then wallet}
+    <p>{account} ({wallet.address}) have {wallet.balance} snowflakes</p>{/await}
 </div>
 
 <style>

@@ -3,12 +3,13 @@
   import { writable } from "svelte/store";
   import Wallet from "./Wallet.svelte";
 
+  const loading = writable(false);
+
   let activeAccount = "";
   let pubKey = "";
   let mnemonic = "";
   let name = "";
   let masterPassword = "asdf";
-  const loading = writable(false);
   let getAccountsResults: any = [];
 
   async function createAccount() {

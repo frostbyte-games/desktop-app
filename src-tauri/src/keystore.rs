@@ -45,12 +45,11 @@ pub fn verify_and_fetch_keypair(account: &str) -> Option<sr25519::Pair> {
         let decrypted_data = String::from_utf8(decrypted_data).unwrap();
         let keystore: Keystore = serde_json::from_str(&decrypted_data).unwrap();
         println!("Keystore: {:?}", keystore);
-        let public_key = Public::from_slice(&keystore.public_key.as_bytes()).unwrap();
+        let public_key = Public::from_string(&keystore.public_key).unwrap();
         public_key.verify(&keystore.message, &keystore.signature);
 
         let pair = sr25519::Pair::from_seed(&keystore.seed);
 
-        println!("Public key: {}", pair.public());
         Some(pair)
     }
 }
