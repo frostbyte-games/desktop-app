@@ -30,7 +30,7 @@ pub fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, Acc
     MultiAddress::Id(signer)
 }
 
-pub fn verify_and_fetch_keypair(account: &str) -> Option<sr25519::Pair> {
+pub fn verify_and_fetch_keypair(account: &str, derived_key: &str) -> Option<sr25519::Pair> {
     println!("Verifying and fetching keypair for account: {}", account);
     let app_dir_path = get_base_home_path().unwrap();
     let path = format!("{}/.frostbyte/keystore/{}.json", app_dir_path, account);
@@ -40,7 +40,7 @@ pub fn verify_and_fetch_keypair(account: &str) -> Option<sr25519::Pair> {
         println!("Keystore file does not exist");
         None
     } else {
-        let decrypted_data = decrypt_file(&path, "asdf").unwrap();
+        let decrypted_data = decrypt_file(&path, derived_key).unwrap();
         let decrypted_data = String::from_utf8(decrypted_data).unwrap();
         let keystore: Keystore = serde_json::from_str(&decrypted_data).unwrap();
         println!("Keystore: {:?}", keystore);

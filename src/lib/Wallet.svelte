@@ -16,7 +16,14 @@
   }
 
   onMount(async () => {
-    wallet = getBalance(account);
+    wallet = getBalance(account)
+      .then((result) => {
+        console.log(result);
+        return wallet;
+      })
+      .catch((err) => {
+        return { address: "", balance: "" } as Wallet;
+      });
   });
 
   $: wallet = getBalance(account);

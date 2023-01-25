@@ -15,10 +15,8 @@ use sp_core::Pair;
 use sp_keyring::AccountKeyring;
 use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
 use substrate_api_client::{
-    compose_extrinsic,
-    rpc::{JsonrpseeClient, WsRpcClient},
-    Api, ExtrinsicSigner, GenericAdditionalParams, GetAccountInformation, GetHeader,
-    PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
+    compose_extrinsic, rpc::WsRpcClient, Api, ExtrinsicSigner, GenericAdditionalParams,
+    GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
 use tauri::{async_runtime::RwLock, State};
 
@@ -165,23 +163,24 @@ struct Wallet {
 }
 
 #[tauri::command]
-fn balance(account: &str) -> Wallet {
+async fn balance<'a>(account: &str, session: State<'a, Session>) -> Result<Wallet, String> {
     // causes problems
     // thread 'main' panicked at 'env_logger::init should not be called after logger initialized: SetLoggerError(())', /Users/michael.assaf/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.10.0/src/lib.rs:1154:16
     // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
     // fatal runtime error: failed to initiate panic, error 5
     // env_logger::init();
 
+    let derived_key = session.derived_key.read().await;
+
     if account.is_empty() {
-        return Wallet {
+        return Ok(Wallet {
             address: String::from(""),
             balance: String::from(""),
-        };
+        });
     }
 
-    let client = JsonrpseeClient::with_default_url().unwrap();
-
-    let pair = keystore::verify_and_fetch_keypair(&account).unwrap();
+    let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
+    let pair = keystore::verify_and_fetch_keypair(&account, &*derived_key).unwrap();
 
     let mut api =
         Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
@@ -196,10 +195,10 @@ fn balance(account: &str) -> Wallet {
 
     let address = pair.public().to_ss58check();
 
-    return Wallet {
+    Ok(Wallet {
         address,
         balance: balance.to_string(),
-    };
+    })
 }
 
 #[tauri::command]

@@ -9,21 +9,20 @@
   let pubKey = "";
   let mnemonic = "";
   let name = "";
-  let masterPassword = "asdf";
   let getAccountsResults: any = [];
 
   async function createAccount() {
     loading.set(true);
     [pubKey, mnemonic] = await invoke("create_account", {
-      name,
-      masterPassword
+      name
     });
+    getAccounts();
     loading.set(false);
   }
 
   async function getAccounts() {
     loading.set(true);
-    await invoke("get_accounts", { masterPassword })
+    await invoke("get_accounts")
       .then((result) => {
         getAccountsResults = result;
       })
@@ -44,7 +43,6 @@
   {:else}
     <Wallet account={activeAccount} />
     <input type="text" bind:value={name} />
-    <input type="password" bind:value={masterPassword} />
     <button on:click={createAccount}>Create Account</button>
     <select bind:value={activeAccount}>
       {#each getAccountsResults as account}
