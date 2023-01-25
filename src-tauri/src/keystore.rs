@@ -4,12 +4,11 @@ use node_primitives::AccountIndex;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use sodiumoxide::crypto::pwhash::{self, Salt};
 use sp_core::sr25519::{self, Public, Signature};
-use sp_core::ByteArray;
 use sp_core::Pair;
 use sp_runtime::app_crypto::{RuntimePublic, Ss58Codec};
 use sp_runtime::{AccountId32, MultiAddress};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::Path;
 use std::{env, fs};
 
 #[derive(Serialize, Deserialize, Debug)]

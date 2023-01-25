@@ -5,30 +5,43 @@
 
 use codec::Compact;
 use frame_support::Serialize;
-use frame_system::offchain::Signer;
 use kitchensink_runtime::{
     AccountId, BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature,
 };
 use pallet_staking::BalanceOf;
 use secrets::{traits::AsContiguousBytes, Secret};
+use sodiumoxide::crypto::pwhash::{self, Salt};
 use sp_core::Pair;
 use sp_keyring::AccountKeyring;
-use sp_runtime::{app_crypto::Ss58Codec, generic::Era, AccountId32};
-use std::env;
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
 use substrate_api_client::{
     compose_extrinsic, rpc::JsonrpseeClient, Api, ExtrinsicSigner, GenericAdditionalParams,
     GetAccountInformation, GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
+use tauri::{async_runtime::RwLock, State};
 
 mod keystore;
+
+static SALT: Salt = Salt([
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+]);
+
+struct Session {
+    derived_key: RwLock<String>,
+}
 
 #[tokio::main]
 async fn main() {
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
     tauri::Builder::default()
+        .manage(Session {
+            derived_key: RwLock::new(String::from("")),
+        })
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
+            unlock,
             create_account,
             balance,
             get_accounts
@@ -38,11 +51,40 @@ async fn main() {
 }
 
 #[tauri::command]
-fn create_account(name: &str, master_password: &str) -> Result<(String, String, String), String> {
+async fn unlock<'a>(master_password: &str, session: State<'a, Session>) -> Result<(), ()> {
+    let mut derived_key = session.derived_key.write().await;
+
+    let mut key = [0u8; 32];
+    pwhash::derive_key(
+        &mut key,
+        master_password.as_bytes(),
+        &SALT,
+        pwhash::OPSLIMIT_INTERACTIVE,
+        pwhash::MEMLIMIT_INTERACTIVE,
+    )
+    .unwrap();
+
+    let key = key.to_vec();
+    let key = String::from_utf8_lossy(&key);
+    *derived_key = String::from(key);
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn create_account<'a>(
+    name: &str,
+    session: State<'a, Session>,
+) -> Result<(String, String, String), String> {
+    let derived_key = session.derived_key.read().await;
+
+    println!("key {}", derived_key);
+
     Secret::<[u8; 32]>::random(|password| {
-        let password = password.as_bytes();
+        let password = "asdf".as_bytes();
         let password = hex::encode(password);
-        let account = keystore::add_keypair(name, &password, master_password).unwrap();
+
+        let account = keystore::add_keypair(name, &password, &*derived_key).unwrap();
 
         println!("account: {:?}", account);
 
