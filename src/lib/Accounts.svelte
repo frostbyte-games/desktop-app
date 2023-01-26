@@ -29,7 +29,10 @@
     return await invoke("get_accounts");
   }
 
-  let accounts = getAccounts();
+  let accounts = getAccounts().then((result) => {
+    activeAccount = result[0];
+    return result;
+  });
 </script>
 
 <div class="col">
