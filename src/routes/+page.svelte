@@ -17,9 +17,11 @@
 <div>
   {#if !passwordEntered}
     <div>
-      <label for="password">Enter Master Password:</label>
-      <input type="password" id="password" bind:value={enteredPassword} />
-      <button on:click={unlock}>Submit</button>
+      <form on:submit|preventDefault={unlock}>
+        <label for="password">Enter Master Password:</label>
+        <input type="password" id="password" bind:value={enteredPassword} />
+        <button on:click={unlock} type="submit">Submit</button>
+      </form>
     </div>
   {:else}
     <Accounts />

@@ -73,11 +73,15 @@ async fn unlock<'a>(master_password: &str, session: State<'a, Session>) -> Resul
     Ok(())
 }
 
+#[derive(Serialize)]
+struct Account {
+    password: String,
+    address: String,
+    mnemonic: String,
+}
+
 #[tauri::command]
-async fn create_account<'a>(
-    name: &str,
-    session: State<'a, Session>,
-) -> Result<(String, String, String), String> {
+async fn create_account<'a>(name: &str, session: State<'a, Session>) -> Result<Account, String> {
     let derived_key = session.derived_key.read().await;
 
     Secret::<[u8; 32]>::random(|password| {
@@ -152,7 +156,11 @@ async fn create_account<'a>(
         println!("[+] Extrinsic got included in block {:?}", block_hash);
 
         let address = format!("{:?}", address);
-        Ok((account.password, address, account.mnemonic))
+        Ok(Account {
+            password: account.password,
+            address,
+            mnemonic: account.mnemonic,
+        })
     })
 }
 

@@ -6,36 +6,48 @@
   const loading = writable(false);
 
   let activeAccount = "";
-  let pubKey = "";
-  let mnemonic = "";
+  let account: Account;
   let name = "";
-  let getAccountsResults: any = [];
+
+  type Account = {
+    password: string;
+    address: string;
+    mnemonic: string;
+  };
 
   async function createAccount() {
     loading.set(true);
-    [pubKey, mnemonic] = await invoke("create_account", {
+    account = await invoke("create_account", {
       name
     });
-    getAccounts();
+    accounts = getAccounts();
+    activeAccount = name;
     loading.set(false);
   }
 
-  async function getAccounts() {
-    loading.set(true);
-    await invoke("get_accounts")
-      .then((result) => {
-        getAccountsResults = result;
-      })
-      .catch((err) => {
-        getAccountsResults = "Error: " + err.toString();
-      });
-    loading.set(false);
+  async function getAccounts(): Promise<string[]> {
+    return await invoke("get_accounts");
   }
 
-  getAccounts();
+  let accounts = getAccounts();
 </script>
 
 <div class="col">
+  {#await accounts}
+    <p>...loading accounts</p>
+  {:then accounts}
+    {#if accounts.length > 0}
+      <select bind:value={activeAccount}>
+        {#each accounts as account}
+          <option value={account}>{account}</option>
+        {/each}
+      </select>
+    {:else}
+      <p>Create your first account!</p>
+    {/if}
+  {:catch error}
+    <p style="color: red">getAccounts error: {error}</p>
+  {/await}
   {#if $loading}
     <div class="loading-spinner-wrapper">
       <div class="loading-spinner" />
@@ -44,14 +56,19 @@
     <Wallet account={activeAccount} />
     <input type="text" bind:value={name} />
     <button on:click={createAccount}>Create Account</button>
-    <select bind:value={activeAccount}>
-      {#each getAccountsResults as account}
-        <option value={account}>{account}</option>
-      {/each}
-    </select>
-
-    <p>{mnemonic}</p>
-    <p>{pubKey}</p>
+    {#if account}
+      <h2>New account created</h2>
+      <p>
+        Make sure to save your mnemonic phrase and your password to recover your
+        account or import it on another device.
+      </p>
+      <h3>Address</h3>
+      <p>{account.address}</p>
+      <h3>Password</h3>
+      <p>{account.password}</p>
+      <h3>Mnemonic</h3>
+      <p>{account.mnemonic}</p>
+    {/if}
   {/if}
 </div>
 
@@ -81,9 +98,9 @@
       transform: rotate(360deg);
     }
   }
-  p {
+  /* p {
     color: coral;
     font-family: "Dank Mono", cursive;
     font-size: 2em;
-  }
+  } */
 </style>
