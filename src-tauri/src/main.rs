@@ -106,7 +106,12 @@ async fn create_account<'a>(name: &str, session: State<'a, Session>) -> Result<A
         let (free, reserved) = init_balances();
 
         let address = account.address.to_ss58check();
+
+        println!("{:?}", account.address);
+
         let multi_addr = keystore::get_signer_multi_addr(account.address);
+
+        println!("{:?}", multi_addr);
 
         let xt = compose_extrinsic!(
             &api,
@@ -123,37 +128,37 @@ async fn create_account<'a>(name: &str, session: State<'a, Session>) -> Result<A
         println!("[+] Extrinsic hash: {:?}", xt_hash);
 
         // Get the nonce of the signer account (online).
-        let signer_nonce = api.get_nonce().unwrap();
-        println!("[+] {}'s Account Nonce is {}\n", name, signer_nonce);
+        // let signer_nonce = api.get_nonce().unwrap();
+        // println!("[+] {}'s Account Nonce is {}\n", name, signer_nonce);
 
-        let last_finalized_header_hash = api.get_finalized_head().unwrap().unwrap();
-        let header = api
-            .get_header(Some(last_finalized_header_hash))
-            .unwrap()
-            .unwrap();
-        let period = 5;
-        let tx_params = GenericAdditionalParams::new()
-            .era(
-                Era::mortal(period, header.number.into()),
-                last_finalized_header_hash,
-            )
-            .tip(0);
-        api.set_additional_params(tx_params);
+        // let last_finalized_header_hash = api.get_finalized_head().unwrap().unwrap();
+        // let header = api
+        //     .get_header(Some(last_finalized_header_hash))
+        //     .unwrap()
+        //     .unwrap();
+        // let period = 5;
+        // let tx_params = GenericAdditionalParams::new()
+        //     .era(
+        //         Era::mortal(period, header.number.into()),
+        //         last_finalized_header_hash,
+        //     )
+        //     .tip(0);
+        // api.set_additional_params(tx_params);
 
-        // Compose the extrinsic (offline).
-        let call = RuntimeCall::Balances(BalancesCall::transfer {
-            dest: multi_addr,
-            value: 500,
-        });
-        let xt = api.compose_extrinsic_offline(call, signer_nonce);
+        // // Compose the extrinsic (offline).
+        // let call = RuntimeCall::Balances(BalancesCall::transfer {
+        //     dest: multi_addr,
+        //     value: 500,
+        // });
+        // let xt = api.compose_extrinsic_offline(call, signer_nonce);
 
-        // Send and watch extrinsic until in block (online).
-        let block_hash = api
-            .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
-            .unwrap()
-            .block_hash
-            .unwrap();
-        println!("[+] Extrinsic got included in block {:?}", block_hash);
+        // // Send and watch extrinsic until in block (online).
+        // let block_hash = api
+        //     .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
+        //     .unwrap()
+        //     .block_hash
+        //     .unwrap();
+        // println!("[+] Extrinsic got included in block {:?}", block_hash);
 
         let address = format!("{:?}", address);
         Ok(Account {
