@@ -1,5 +1,5 @@
 <script>
-  import Accounts from "$lib/Accounts.svelte";
+  import Accounts from "$lib/accounts/Accounts.svelte";
   import { invoke } from "@tauri-apps/api/tauri";
 
   let passwordEntered = false;

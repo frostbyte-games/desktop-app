@@ -1,8 +1,11 @@
 <script lang="ts">
-  export let account: string;
-
   import { invoke } from "@tauri-apps/api/tauri";
-  import { onMount } from "svelte";
+  import { activeAccount } from "./accounts";
+
+  let account: string;
+  activeAccount.subscribe((value: string) => {
+    account = value;
+  });
 
   type Wallet = {
     address: string;
@@ -14,17 +17,6 @@
   async function getBalance(account: string): Promise<Wallet> {
     return await invoke("balance", { account });
   }
-
-  onMount(async () => {
-    wallet = getBalance(account)
-      .then((result) => {
-        console.log(result);
-        return wallet;
-      })
-      .catch((err) => {
-        return { address: "", balance: "" } as Wallet;
-      });
-  });
 
   $: wallet = getBalance(account);
 </script>

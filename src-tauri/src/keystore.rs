@@ -130,7 +130,7 @@ pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<
     let mut key = [0u8; 32];
     pwhash::derive_key(
         &mut key,
-        master_password.as_bytes(),
+        password.as_bytes(),
         &SALT,
         pwhash::OPSLIMIT_INTERACTIVE,
         pwhash::MEMLIMIT_INTERACTIVE,
@@ -170,7 +170,7 @@ static SALT: Salt = Salt([
     0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
 ]);
 
-/// Encrypts a given data using AES-256-CBC algorithm and a key derived from the master_password and writes it to a file
+/// Encrypts data using AES-256-CBC algorithm and a key derived from the master_password and writes it to a file
 ///
 /// # Parameters
 /// * `name: &str` - the name of the file to be written

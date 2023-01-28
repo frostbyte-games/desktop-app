@@ -1,13 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/tauri";
-  import { writable } from "svelte/store";
+  import { activeAccount } from "./accounts";
   import Wallet from "./Wallet.svelte";
-
-  const loading = writable(false);
-
-  let activeAccount = "";
-  let account: Account;
-  let name = "";
 
   type Account = {
     password: string;
@@ -15,14 +9,15 @@
     mnemonic: string;
   };
 
+  let account: Account;
+  let name = "";
+
   async function createAccount() {
-    loading.set(true);
     account = await invoke("create_account", {
       name
     });
     accounts = getAccounts();
-    activeAccount = name;
-    loading.set(false);
+    activeAccount.set(name);
   }
 
   async function getAccounts(): Promise<string[]> {
@@ -30,33 +25,33 @@
   }
 
   let accounts = getAccounts().then((result) => {
-    activeAccount = result[0];
+    activeAccount.set(result[0]);
     return result;
   });
 </script>
 
 <div class="col">
   {#await accounts}
-    <p>...loading accounts</p>
+    <div class="loading-spinner-wrapper">
+      <div class="loading-spinner" />
+    </div>
   {:then accounts}
     {#if accounts.length > 0}
-      <select bind:value={activeAccount}>
+      <select bind:value={$activeAccount}>
         {#each accounts as account}
           <option value={account}>{account}</option>
         {/each}
       </select>
+      <Wallet />
     {:else}
       <p>Create your first account!</p>
     {/if}
   {:catch error}
     <p style="color: red">getAccounts error: {error}</p>
   {/await}
-  {#if $loading}
-    <div class="loading-spinner-wrapper">
-      <div class="loading-spinner" />
-    </div>
-  {:else}
-    <Wallet account={activeAccount} />
+  <input type="text" bind:value={name} placeholder="Name your account" />
+  <button id="create-account" on:click={createAccount}>Create Account</button>
+  <!-- {#if $loading}{:else}
     <input type="text" bind:value={name} />
     <button on:click={createAccount}>Create Account</button>
     {#if account}
@@ -72,7 +67,7 @@
       <h3>Mnemonic</h3>
       <p>{account.mnemonic}</p>
     {/if}
-  {/if}
+  {/if} -->
 </div>
 
 <style>
