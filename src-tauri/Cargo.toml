@@ -57,6 +57,7 @@ hex = "0.4.3"
 openssl = "0.10.45"
 sodiumoxide = "0.2.7"
 schnorrkel = "0.10.2"
+pwhash = "1"
 
 tauri-plugin-window-state = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "dev" }
 

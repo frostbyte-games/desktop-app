@@ -2,7 +2,6 @@ use frame_support::{Deserialize, Serialize};
 use kitchensink_runtime::AccountId;
 use node_primitives::AccountIndex;
 use openssl::symm::{decrypt, encrypt, Cipher};
-use sodiumoxide::crypto::pwhash::{self, Salt};
 use sp_core::sr25519::{self, Public, Signature};
 use sp_core::Pair;
 use sp_runtime::app_crypto::{RuntimePublic, Ss58Codec};
@@ -30,17 +29,19 @@ pub fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, Acc
     MultiAddress::Id(signer)
 }
 
-pub fn verify_and_fetch_keypair(account: &str, derived_key: &str) -> Option<sr25519::Pair> {
-    println!("Verifying and fetching keypair for account: {}", account);
+pub fn verify_and_fetch_keypair(
+    account_name: &str,
+    master_password: &str,
+) -> Option<sr25519::Pair> {
     let app_dir_path = get_base_home_path().unwrap();
-    let path = format!("{}/.frostbyte/keystore/{}.json", app_dir_path, account);
+    let path = format!("{}/.frostbyte/keystore/{}.json", app_dir_path, account_name);
 
     let path = Path::new(&path);
     if !path.exists() {
         println!("Keystore file does not exist");
         None
     } else {
-        let decrypted_data = decrypt_file(&path, derived_key).unwrap();
+        let decrypted_data = decrypt_file(&path, master_password).unwrap();
         let decrypted_data = String::from_utf8(decrypted_data).unwrap();
         let keystore: Keystore = serde_json::from_str(&decrypted_data).unwrap();
         println!("Keystore: {:?}", keystore);
@@ -53,44 +54,7 @@ pub fn verify_and_fetch_keypair(account: &str, derived_key: &str) -> Option<sr25
     }
 }
 
-/// Reads all the keystore files in the application directory, decrypts them and returns the keypairs
-///
-/// # Parameters
-/// * `master_password: &str` - the master password used to decrypt the keystore files
-///
-/// # Returns
-/// * `Result<Vec<Keystore>, String>` - returns a vector of keystore structs if successful, otherwise returns an error string
-pub async fn get_and_decrypt_all_keypairs(master_password: &str) -> Result<Vec<Keystore>, String> {
-    let app_dir_path = get_base_home_path()?;
-    let path = format!("{}/.frostbyte/keystore", app_dir_path);
-
-    let path = Path::new(&path);
-    if !path.exists() {
-        fs::create_dir(&path).unwrap();
-        return Ok(vec![]);
-    }
-
-    let keystores: Vec<Keystore> = std::fs::read_dir(&path)
-        .unwrap()
-        .filter_map(|entry| {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension() == Some("json".as_ref()) {
-                let decrypted_data = decrypt_file(&path, master_password).unwrap();
-                let decrypted_data = String::from_utf8(decrypted_data).unwrap();
-                let keystore: Keystore = serde_json::from_str(&decrypted_data).unwrap();
-
-                Some(keystore)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(keystores)
-}
-
-pub async fn get_available_keypairs() -> Result<Vec<String>, String> {
+pub fn get_available_keypairs() -> Result<Vec<String>, String> {
     let app_dir_path = get_base_home_path()?;
     let path = format!("{}/.frostbyte", app_dir_path);
 
@@ -100,12 +64,12 @@ pub async fn get_available_keypairs() -> Result<Vec<String>, String> {
         return Ok(vec![]);
     }
 
-    let path = format!("{}/.frostbyte/keystore", app_dir_path);
-    let path = Path::new(&path);
-    if !path.exists() {
-        fs::create_dir(&path).unwrap();
-        return Ok(vec![]);
-    }
+    let path = match get_path("keystore", false) {
+        Ok(path) => path,
+        Err(err) => match err {
+            FileErrors::DoesNotExist => return Err(String::from("File not found")),
+        },
+    };
 
     let keystores: Vec<String> = std::fs::read_dir(&path)
         .unwrap()
@@ -124,21 +88,7 @@ pub async fn get_available_keypairs() -> Result<Vec<String>, String> {
 }
 
 pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<Account, String> {
-    // Derive key from password
-    // let salt = pwhash::gen_salt();
-
-    let mut key = [0u8; 32];
-    pwhash::derive_key(
-        &mut key,
-        password.as_bytes(),
-        &SALT,
-        pwhash::OPSLIMIT_INTERACTIVE,
-        pwhash::MEMLIMIT_INTERACTIVE,
-    )
-    .unwrap();
-    let key = key.to_vec();
-    let key = String::from_utf8_lossy(&key);
-    let account_gen = sr25519::Pair::generate_with_phrase(Some(&key));
+    let account_gen = sr25519::Pair::generate_with_phrase(Some(&password));
     let pair: sr25519::Pair = account_gen.0;
 
     let account = Account {
@@ -149,11 +99,11 @@ pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<
 
     let message = b"Frostbyte is awesome!";
     let signature = pair.sign(message);
-    let public_keys = pair.public().to_ss58check();
-    let public_keys = public_keys.as_bytes();
-    let public_keys = String::from_utf8(public_keys.to_vec()).unwrap();
+    let public_key = pair.public().to_ss58check();
+    let public_key = public_key.as_bytes();
+    let public_key = String::from_utf8(public_key.to_vec()).unwrap();
     let keystore = Keystore {
-        public_key: public_keys,
+        public_key,
         seed: account_gen.2,
         signature,
         message: message.to_vec(),
@@ -165,11 +115,6 @@ pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<
     Ok(account)
 }
 
-static SALT: Salt = Salt([
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
-]);
-
 /// Encrypts data using AES-256-CBC algorithm and a key derived from the master_password and writes it to a file
 ///
 /// # Parameters
@@ -180,52 +125,20 @@ static SALT: Salt = Salt([
 /// # Returns
 /// * `Result<(), String>` - returns Ok if the file is successfully written, otherwise returns an error string
 fn encrypt_file(name: &str, master_password: &str, data: String) -> Result<(), String> {
-    // Write the JSON object to a file on disk
-    // check if directory exists if it doesnt, create it
-    let app_data_dir = get_base_home_path()?;
-
-    let path = format!("{}/.frostbyte/keystore", app_data_dir);
-    if !std::path::Path::new(&path).exists() {
-        fs::create_dir(&path).unwrap();
-    }
+    let path = get_path("keystore", true).unwrap();
 
     let file_path = format!("{}/{}.json", path, name);
     fs::write(&file_path, data).unwrap();
     let data = fs::read(&file_path).unwrap();
 
-    // Derive key from password
-    // let salt = pwhash::gen_salt();
-
-    let mut key = [0u8; 32];
-    pwhash::derive_key(
-        &mut key,
-        master_password.as_bytes(),
-        &SALT,
-        pwhash::OPSLIMIT_INTERACTIVE,
-        pwhash::MEMLIMIT_INTERACTIVE,
-    )
-    .unwrap();
-
-    // Use key in encryption
     let cipher = Cipher::aes_256_cbc();
-    let encrypted_data = encrypt(cipher, &key, None, &data).unwrap();
+    let encrypted_data = encrypt(cipher, master_password.as_bytes(), None, &data).unwrap();
     fs::write(file_path, &encrypted_data).unwrap();
 
     Ok(())
 }
 
 fn decrypt_file(file_path: &Path, master_password: &str) -> Result<Vec<u8>, String> {
-    // let salt = pwhash::gen_salt();
-    let mut key = [0u8; 32];
-    pwhash::derive_key(
-        &mut key,
-        master_password.as_bytes(),
-        &SALT,
-        pwhash::OPSLIMIT_INTERACTIVE,
-        pwhash::MEMLIMIT_INTERACTIVE,
-    )
-    .map_err(|e| format!("{:?}", e))?;
-
     let mut data = vec![];
     let mut file = match std::fs::File::open(file_path) {
         Ok(file) => file,
@@ -234,11 +147,39 @@ fn decrypt_file(file_path: &Path, master_password: &str) -> Result<Vec<u8>, Stri
     file.read_to_end(&mut data).map_err(|e| format!("{}", e))?;
 
     let cipher = Cipher::aes_256_cbc();
-    let decrypted_data = decrypt(cipher, &key, None, &data).map_err(|e| format!("{}", e))?;
+    let decrypted_data =
+        decrypt(cipher, master_password.as_bytes(), None, &data).map_err(|e| format!("{}", e))?;
 
     Ok(decrypted_data)
 }
-pub fn get_base_home_path() -> Result<String, String> {
+
+#[derive(Debug)]
+pub enum FileErrors {
+    DoesNotExist,
+}
+
+pub fn get_path(relative_path: &str, create: bool) -> Result<String, FileErrors> {
+    let path = format!("{}/{}", get_frostbyte_base_path().unwrap(), relative_path);
+    if !std::path::Path::new(&path).exists() {
+        match create {
+            true => fs::create_dir(&path).unwrap(),
+            false => return Err(FileErrors::DoesNotExist),
+        }
+    }
+
+    Ok(path)
+}
+
+pub fn get_frostbyte_base_path() -> Result<String, String> {
+    let path = format!("{}/.frostbyte", get_base_home_path().unwrap());
+    if !std::path::Path::new(&path).exists() {
+        fs::create_dir(&path).unwrap();
+    }
+
+    Ok(path)
+}
+
+fn get_base_home_path() -> Result<String, String> {
     match env::var("APPDATA") {
         Ok(val) => return Ok(val),
         Err(_) => match env::var("HOME") {

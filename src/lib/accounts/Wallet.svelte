@@ -3,7 +3,8 @@
   import { activeAccount } from "./accounts";
 
   let account: string;
-  activeAccount.subscribe((value: string) => {
+  activeAccount.subscribe(async (value: string) => {
+    await setActiveAccount(value);
     account = value;
   });
 
@@ -16,6 +17,10 @@
 
   async function getBalance(account: string): Promise<Wallet> {
     return await invoke("balance", { account });
+  }
+
+  async function setActiveAccount(account: string): Promise<any> {
+    return await invoke("set_active_account", { accountName: account });
   }
 
   $: wallet = getBalance(account);

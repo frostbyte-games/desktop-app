@@ -4,11 +4,25 @@
 
   let passwordEntered = false;
   let enteredPassword = "";
+  let errorMessage = "";
+
+  const invalidPasswordError = "InvalidPassword";
 
   async function unlock() {
-    await invoke("unlock", { masterPassword: enteredPassword });
+    if (enteredPassword.length < 32) {
+      errorMessage = "Password must be at least 32 characters long";
+      return;
+    }
 
-    passwordEntered = true;
+    await invoke("unlock", { masterPassword: enteredPassword })
+      .then(() => {
+        passwordEntered = true;
+      })
+      .catch((err) => {
+        if (err === invalidPasswordError) {
+          errorMessage = "Invalid Password";
+        }
+      });
   }
 </script>
 
@@ -22,6 +36,7 @@
         <input type="password" id="password" bind:value={enteredPassword} />
         <button on:click={unlock} type="submit">Submit</button>
       </form>
+      <p style="color: red">{errorMessage}</p>
     </div>
   {:else}
     <Accounts />
