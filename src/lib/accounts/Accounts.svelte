@@ -31,6 +31,8 @@
 </script>
 
 <div class="col">
+  <input type="text" bind:value={name} placeholder="Name your account" />
+  <button id="create-account" on:click={createAccount}>Create Account</button>
   {#await accounts}
     <div class="loading-spinner-wrapper">
       <div class="loading-spinner" />
@@ -42,6 +44,19 @@
           <option value={account}>{account}</option>
         {/each}
       </select>
+      {#if account}
+        <h2>New account created</h2>
+        <p>
+          Make sure to save your mnemonic phrase and your password to recover
+          your account or import it on another device.
+        </p>
+        <h3>Address</h3>
+        <p>{account.address}</p>
+        <h3>Password</h3>
+        <p>{account.password}</p>
+        <h3>Mnemonic</h3>
+        <p>{account.mnemonic}</p>
+      {/if}
       <Wallet />
     {:else}
       <p>Create your first account!</p>
@@ -49,25 +64,12 @@
   {:catch error}
     <p style="color: red">getAccounts error: {error}</p>
   {/await}
-  <input type="text" bind:value={name} placeholder="Name your account" />
-  <button id="create-account" on:click={createAccount}>Create Account</button>
+
   <!-- {#if $loading}{:else}
     <input type="text" bind:value={name} />
-    <button on:click={createAccount}>Create Account</button>
-    {#if account}
-      <h2>New account created</h2>
-      <p>
-        Make sure to save your mnemonic phrase and your password to recover your
-        account or import it on another device.
-      </p>
-      <h3>Address</h3>
-      <p>{account.address}</p>
-      <h3>Password</h3>
-      <p>{account.password}</p>
-      <h3>Mnemonic</h3>
-      <p>{account.mnemonic}</p>
-    {/if}
-  {/if} -->
+    <button on:click={createAccount}>Create Account</button> -->
+
+  <!-- {/if} -->
 </div>
 
 <style>

@@ -23,12 +23,34 @@
     return await invoke("set_active_account", { accountName: account });
   }
 
+  let amount = "";
+  let to = "";
+  let successMessage = "";
+  let errorMessage = "";
+
+  async function transfer() {
+    await invoke("transfer", { amount, to })
+      .then(() => {
+        successMessage = "successfully transfered snowflakes";
+        wallet = getBalance(account);
+      })
+      .catch((err) => (errorMessage = "failed to transfer snowflakes"));
+  }
+
   $: wallet = getBalance(account);
 </script>
 
 <div class="col">
   {#await wallet then wallet}
-    <p>{account} ({wallet.address}) have {wallet.balance} snowflakes</p>{/await}
+    <p>Address: {wallet.address}</p>
+    <p>Snowflakes: {wallet.balance}</p>
+  {/await}
+
+  <input type="text" bind:value={amount} placeholder="Amount to send" />
+  <input type="text" bind:value={to} placeholder="Destination address" />
+  <button id="transfer" on:click={transfer}>Send</button>
+  <p>{successMessage}</p>
+  <p>{errorMessage}</p>
 </div>
 
 <style>

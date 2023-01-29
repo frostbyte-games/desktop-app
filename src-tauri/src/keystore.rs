@@ -6,9 +6,11 @@ use sp_core::sr25519::{self, Public, Signature};
 use sp_core::Pair;
 use sp_runtime::app_crypto::{RuntimePublic, Ss58Codec};
 use sp_runtime::{AccountId32, MultiAddress};
+use std::fs;
 use std::io::Read;
 use std::path::Path;
-use std::{env, fs};
+
+use crate::file_manager::{get_base_home_path, get_path};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Keystore {
@@ -52,39 +54,6 @@ pub fn verify_and_fetch_keypair(
 
         Some(pair)
     }
-}
-
-pub fn get_available_keypairs() -> Result<Vec<String>, String> {
-    let app_dir_path = get_base_home_path()?;
-    let path = format!("{}/.frostbyte", app_dir_path);
-
-    let path = Path::new(&path);
-    if !path.exists() {
-        fs::create_dir(&path).unwrap();
-        return Ok(vec![]);
-    }
-
-    let path = match get_path("keystore", false) {
-        Ok(path) => path,
-        Err(err) => match err {
-            FileErrors::DoesNotExist => return Err(String::from("File not found")),
-        },
-    };
-
-    let keystores: Vec<String> = std::fs::read_dir(&path)
-        .unwrap()
-        .filter_map(|entry| {
-            let entry = entry.unwrap();
-            let path = entry.path();
-            if path.extension() == Some("json".as_ref()) {
-                Some(path.file_stem().unwrap().to_str().unwrap().to_string())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(keystores)
 }
 
 pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<Account, String> {
@@ -151,42 +120,4 @@ fn decrypt_file(file_path: &Path, master_password: &str) -> Result<Vec<u8>, Stri
         decrypt(cipher, master_password.as_bytes(), None, &data).map_err(|e| format!("{}", e))?;
 
     Ok(decrypted_data)
-}
-
-#[derive(Debug)]
-pub enum FileErrors {
-    DoesNotExist,
-}
-
-pub fn get_path(relative_path: &str, create: bool) -> Result<String, FileErrors> {
-    let path = format!("{}/{}", get_frostbyte_base_path().unwrap(), relative_path);
-    if !std::path::Path::new(&path).exists() {
-        match create {
-            true => fs::create_dir(&path).unwrap(),
-            false => return Err(FileErrors::DoesNotExist),
-        }
-    }
-
-    Ok(path)
-}
-
-pub fn get_frostbyte_base_path() -> Result<String, String> {
-    let path = format!("{}/.frostbyte", get_base_home_path().unwrap());
-    if !std::path::Path::new(&path).exists() {
-        fs::create_dir(&path).unwrap();
-    }
-
-    Ok(path)
-}
-
-fn get_base_home_path() -> Result<String, String> {
-    match env::var("APPDATA") {
-        Ok(val) => return Ok(val),
-        Err(_) => match env::var("HOME") {
-            Ok(val) => return Ok(val),
-            Err(e) => {
-                return Err(format!("Error: {}", e));
-            }
-        },
-    }
 }
