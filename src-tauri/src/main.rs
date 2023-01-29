@@ -6,16 +6,16 @@
 use std::{fs, path::Path};
 
 use account_manager::AccountManager;
-use codec::Compact;
 use frame_support::Serialize;
-use kitchensink_runtime::{AccountId, Runtime as KitchensinkRuntime, Signature};
-use node_primitives::Balance;
+use kitchensink_runtime::{
+    AccountId, BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature,
+};
 use pwhash::bcrypt;
 use sp_core::Pair;
-use sp_runtime::app_crypto::Ss58Codec;
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
 use substrate_api_client::{
-    compose_extrinsic, pallet_staking_config::BalanceOf, rpc::WsRpcClient, Api, ExtrinsicSigner,
-    GetAccountInformation, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
+    rpc::WsRpcClient, Api, ExtrinsicSigner, GenericAdditionalParams, GetAccountInformation,
+    GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
 use tauri::{async_runtime::RwLock, State};
 
@@ -179,6 +179,13 @@ async fn transfer<'a>(
         Some(active) => active,
     };
 
+    println!("over here");
+
+    let amount = match amount.parse::<u128>() {
+        Ok(amount) => amount,
+        Err(error) => return Err(()),
+    };
+
     let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
     let mut api =
         Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
@@ -187,31 +194,44 @@ async fn transfer<'a>(
         active_account.clone(),
     ));
 
-    let address = AccountId::from_string(to).unwrap();
-    let multi_addr = keystore::get_signer_multi_addr(address);
-
-    println!("over here");
-
-    let balance = match amount.parse::<u128>() {
-        Ok(balance) => {
-            let free: BalanceOf<KitchensinkRuntime> = balance;
-            Compact::from(free)
-        }
-        Err(error) => return Err(()),
-    };
-
-    let xt = compose_extrinsic!(
-        &api,
-        "Balances",
-        "transfer",
-        Box::new(&multi_addr),
-        Box::new(balance)
-    );
-
-    let xt_hash = api
-        .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
+    // Information for Era for mortal transactions (online).
+    let last_finalized_header_hash = api.get_finalized_head().unwrap().unwrap();
+    let header = api
+        .get_header(Some(last_finalized_header_hash))
+        .unwrap()
         .unwrap();
-    println!("[+] Extrinsic hash: {:?}", xt_hash);
+    let period = 5;
+    let tx_params = GenericAdditionalParams::new()
+        .era(
+            Era::mortal(period, header.number.into()),
+            last_finalized_header_hash,
+        )
+        .tip(0);
 
+    // Set the additional params.
+    api.set_additional_params(tx_params);
+
+    // Get the nonce of the signer account (online).
+    let signer_nonce = api.get_nonce().unwrap();
+    println!("[+] Alice's Account Nonce is {}\n", signer_nonce);
+
+    // Compose the extrinsic (offline).
+    let address = AccountId::from_string(to).unwrap();
+    let recipient = keystore::get_signer_multi_addr(address);
+    let call = RuntimeCall::Balances(BalancesCall::transfer_keep_alive {
+        dest: recipient,
+        value: amount,
+    });
+    let xt = api.compose_extrinsic_offline(call, signer_nonce);
+
+    println!("[+] Composed Extrinsic:\n {:?}\n", xt);
+
+    // Send and watch extrinsic until in block (online).
+    let block_hash = api
+        .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
+        .unwrap()
+        .block_hash
+        .unwrap();
+    println!("[+] Extrinsic got included in block {:?}", block_hash);
     Ok(())
 }
