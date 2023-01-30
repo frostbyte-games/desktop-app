@@ -1,12 +1,10 @@
-use std::{fs, path::Path};
-
 use codec::Compact;
 use frame_support::Serialize;
 use node_primitives::AccountIndex;
 use sp_core::sr25519;
 use tauri::async_runtime::RwLock;
 
-use crate::{file_manager::get_base_home_path, keystore, ClientApi};
+use crate::{keystore, ClientApi};
 use kitchensink_runtime::{Runtime as KitchensinkRuntime, Signature};
 use secrets::{traits::AsContiguousBytes, Secret};
 use sp_keyring::AccountKeyring;
