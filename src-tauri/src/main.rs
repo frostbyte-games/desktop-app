@@ -10,12 +10,13 @@ use frame_support::Serialize;
 use kitchensink_runtime::{
     AccountId, BalancesCall, Runtime as KitchensinkRuntime, RuntimeCall, Signature,
 };
+use node_primitives::{Hash, Index};
 use pwhash::bcrypt;
-use sp_core::Pair;
-use sp_runtime::{app_crypto::Ss58Codec, generic::Era};
+use sp_core::{sr25519, Pair};
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era, MultiSignature};
 use substrate_api_client::{
-    rpc::WsRpcClient, Api, ExtrinsicSigner, GenericAdditionalParams, GetAccountInformation,
-    GetHeader, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
+    rpc::WsRpcClient, Api, ExtrinsicSigner, GenericAdditionalParams, GenericExtrinsicParams,
+    GetAccountInformation, GetHeader, PlainTip, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
 };
 use tauri::{async_runtime::RwLock, State};
 
@@ -24,6 +25,14 @@ mod file_manager;
 mod keystore;
 
 struct Session {
+    client: RwLock<
+        Api<
+            ExtrinsicSigner<sr25519::Pair, MultiSignature, KitchensinkRuntime>,
+            WsRpcClient,
+            GenericExtrinsicParams<PlainTip<u128>, Index, Hash>,
+            KitchensinkRuntime,
+        >,
+    >,
     password: RwLock<String>,
 }
 
@@ -33,6 +42,12 @@ async fn main() {
 
     tauri::Builder::default()
         .manage(Session {
+            client: RwLock::new(
+                Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(
+                    WsRpcClient::new("ws://127.0.0.1:9944").unwrap(),
+                )
+                .unwrap(),
+            ),
             password: RwLock::new(String::from("")),
         })
         .manage(AccountManager::new())
@@ -102,7 +117,10 @@ struct Wallet {
 }
 
 #[tauri::command]
-async fn balance<'a>(account_manager: State<'a, AccountManager>) -> Result<Wallet, String> {
+async fn balance<'a>(
+    account_manager: State<'a, AccountManager>,
+    session: State<'a, Session>,
+) -> Result<Wallet, String> {
     // causes problems
     // thread 'main' panicked at 'env_logger::init should not be called after logger initialized: SetLoggerError(())', /Users/michael.assaf/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.10.0/src/lib.rs:1154:16
     // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
@@ -120,13 +138,7 @@ async fn balance<'a>(account_manager: State<'a, AccountManager>) -> Result<Walle
         Some(active) => active,
     };
 
-    let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
-    let mut api =
-        Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
-            .unwrap();
-    api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
-        active_account.clone(),
-    ));
+    let api = session.client.read().await;
 
     let account: AccountId = active_account.public().into();
 
@@ -163,36 +175,28 @@ async fn set_active_account<'a>(
         .set_active(account_name, &*master_password)
         .await;
 
+    let mut api = session.client.write().await;
+
+    let active_account = match &*account_manager.active.read().await {
+        Some(active_account) => active_account.to_owned(),
+        None => return Err(()),
+    };
+
+    api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
+        active_account,
+    ));
+
     Ok(())
 }
 
 #[tauri::command]
-async fn transfer<'a>(
-    amount: &str,
-    to: &str,
-    account_manager: State<'a, AccountManager>,
-) -> Result<(), ()> {
-    println!("HERE");
-    let active_account = account_manager.active.read().await;
-    let active_account = match &*active_account {
-        None => return Err(()),
-        Some(active) => active,
-    };
-
-    println!("over here");
-
+async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Result<(), ()> {
     let amount = match amount.parse::<u128>() {
         Ok(amount) => amount,
         Err(error) => return Err(()),
     };
 
-    let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
-    let mut api =
-        Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(client)
-            .unwrap();
-    api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
-        active_account.clone(),
-    ));
+    let mut api = session.client.write().await;
 
     // Information for Era for mortal transactions (online).
     let last_finalized_header_hash = api.get_finalized_head().unwrap().unwrap();
