@@ -13,7 +13,7 @@ use kitchensink_runtime::{
 use node_primitives::{Hash, Index};
 use pwhash::bcrypt;
 use sp_core::{sr25519, Pair};
-use sp_runtime::{app_crypto::Ss58Codec, generic::Era, MultiSignature};
+use sp_runtime::{app_crypto::Ss58Codec, generic::Era, MultiAddress, MultiSignature};
 use substrate_api_client::{
     rpc::WsRpcClient, Api, ExtrinsicSigner, GenericAdditionalParams, GenericExtrinsicParams,
     GetAccountInformation, GetHeader, PlainTip, PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
@@ -171,7 +171,6 @@ async fn set_active_account<'a>(
     session: State<'a, Session>,
 ) -> Result<(), ()> {
     let master_password = session.password.read().await;
-    println!("{}", account_name);
     account_manager
         .set_active(account_name, &*master_password)
         .await;
@@ -221,7 +220,7 @@ async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Re
 
     // Compose the extrinsic (offline).
     let address = AccountId::from_string(to).unwrap();
-    let recipient = keystore::get_signer_multi_addr(address);
+    let recipient = MultiAddress::Id(address);
     let call = RuntimeCall::Balances(BalancesCall::transfer_keep_alive {
         dest: recipient,
         value: amount,

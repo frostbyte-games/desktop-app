@@ -2,17 +2,15 @@ use std::{fs, path::Path};
 
 use codec::Compact;
 use frame_support::Serialize;
+use node_primitives::AccountIndex;
 use sp_core::sr25519;
 use tauri::async_runtime::RwLock;
 
-use crate::{
-    file_manager::{get_base_home_path, get_path, FileErrors},
-    keystore, ClientApi,
-};
+use crate::{file_manager::get_base_home_path, keystore, ClientApi};
 use kitchensink_runtime::{Runtime as KitchensinkRuntime, Signature};
 use secrets::{traits::AsContiguousBytes, Secret};
 use sp_keyring::AccountKeyring;
-use sp_runtime::app_crypto::Ss58Codec;
+use sp_runtime::{app_crypto::Ss58Codec, AccountId32, MultiAddress};
 use substrate_api_client::{
     compose_extrinsic, pallet_staking_config::BalanceOf, ExtrinsicSigner, SubmitAndWatch, XtStatus,
 };
@@ -66,6 +64,7 @@ impl AccountManager {
 
             let account = keystore::generate_keypair(name, &password, master_password).unwrap();
 
+            // TODO: Replace with admin stash account
             let alice_signer = AccountKeyring::Alice.pair();
             api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
                 alice_signer.clone(),
@@ -74,7 +73,8 @@ impl AccountManager {
             let (free, reserved) = Self::init_balances();
 
             let address = account.address.to_ss58check();
-            let multi_addr = keystore::get_signer_multi_addr(account.address);
+            let multi_addr: MultiAddress<AccountId32, AccountIndex> =
+                MultiAddress::Id(account.address);
 
             let xt = compose_extrinsic!(
                 &api,
@@ -109,28 +109,14 @@ impl AccountManager {
     }
 
     fn get_available_keypairs() -> Result<Vec<String>, String> {
-        let app_dir_path = get_base_home_path()?;
-        let path = format!("{}/.frostbyte", app_dir_path);
-
-        let path = Path::new(&path);
-        if !path.exists() {
-            fs::create_dir(&path).unwrap();
-            return Ok(vec![]);
-        }
-
-        let path = match get_path("keystore", false) {
-            Ok(path) => path,
-            Err(err) => match err {
-                FileErrors::DoesNotExist => return Err(String::from("File not found")),
-            },
-        };
+        let path = keystore::get_keystore_path().unwrap();
 
         let keystores: Vec<String> = std::fs::read_dir(&path)
             .unwrap()
             .filter_map(|entry| {
                 let entry = entry.unwrap();
                 let path = entry.path();
-                if path.extension() == Some("json".as_ref()) {
+                if path.extension() == Some("account".as_ref()) {
                     Some(path.file_stem().unwrap().to_str().unwrap().to_string())
                 } else {
                     None

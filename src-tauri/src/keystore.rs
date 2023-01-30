@@ -1,16 +1,14 @@
 use frame_support::{Deserialize, Serialize};
-use kitchensink_runtime::AccountId;
-use node_primitives::AccountIndex;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use sp_core::sr25519::{self, Public, Signature};
 use sp_core::Pair;
 use sp_runtime::app_crypto::{RuntimePublic, Ss58Codec};
-use sp_runtime::{AccountId32, MultiAddress};
+use sp_runtime::AccountId32;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-use crate::file_manager::{get_base_home_path, get_path};
+use crate::file_manager::{get_path, FileErrors};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Keystore {
@@ -27,16 +25,20 @@ pub struct Account {
     pub mnemonic: String,
 }
 
-pub fn get_signer_multi_addr(signer: AccountId32) -> MultiAddress<AccountId, AccountIndex> {
-    MultiAddress::Id(signer)
+pub fn get_keystore_path() -> Result<String, FileErrors> {
+    match get_path("keystore", true) {
+        Ok(path) => Ok(path),
+        Err(err) => match err {
+            FileErrors::DoesNotExist => Err(err),
+        },
+    }
 }
 
 pub fn verify_and_fetch_keypair(
     account_name: &str,
     master_password: &str,
 ) -> Option<sr25519::Pair> {
-    let app_dir_path = get_base_home_path().unwrap();
-    let path = format!("{}/.frostbyte/keystore/{}.json", app_dir_path, account_name);
+    let path = format!("{}/{}.account", &get_keystore_path().unwrap(), account_name);
 
     let path = Path::new(&path);
     if !path.exists() {
@@ -86,19 +88,10 @@ pub fn generate_keypair(
     Ok(account)
 }
 
-/// Encrypts data using AES-256-CBC algorithm and master_password and writes it to a file
-///
-/// # Parameters
-/// * `name: &str` - the name of the file to be written
-/// * `master_password: &str` - the master password used to derive the key
-/// * `data: String` - the data to be encrypted and written to the file
-///
-/// # Returns
-/// * `Result<(), String>` - returns Ok if the file is successfully written, otherwise returns an error string
 fn encrypt_file(name: &str, master_password: &str, data: String) -> Result<(), String> {
     let path = get_path("keystore", true).unwrap();
 
-    let file_path = format!("{}/{}.json", path, name);
+    let file_path = format!("{}/{}.account", path, name);
     fs::write(&file_path, data).unwrap();
     let data = fs::read(&file_path).unwrap();
 
