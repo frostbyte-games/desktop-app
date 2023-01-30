@@ -60,7 +60,7 @@ impl AccountManager {
             let password = password.as_bytes();
             let password = hex::encode(password);
 
-            let account = keystore::add_keypair(name, &password, master_password).unwrap();
+            let account = keystore::generate_keypair(name, &password, master_password).unwrap();
 
             let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
             let alice_signer = AccountKeyring::Alice.pair();

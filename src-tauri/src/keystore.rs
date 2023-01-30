@@ -40,13 +40,11 @@ pub fn verify_and_fetch_keypair(
 
     let path = Path::new(&path);
     if !path.exists() {
-        println!("Keystore file does not exist");
         None
     } else {
         let decrypted_data = decrypt_file(&path, master_password).unwrap();
         let decrypted_data = String::from_utf8(decrypted_data).unwrap();
         let keystore: Keystore = serde_json::from_str(&decrypted_data).unwrap();
-        println!("Keystore: {:?}", keystore);
         let public_key = Public::from_string(&keystore.public_key).unwrap();
         public_key.verify(&keystore.message, &keystore.signature);
 
@@ -56,7 +54,11 @@ pub fn verify_and_fetch_keypair(
     }
 }
 
-pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<Account, String> {
+pub fn generate_keypair(
+    name: &str,
+    password: &str,
+    master_password: &str,
+) -> Result<Account, String> {
     let account_gen = sr25519::Pair::generate_with_phrase(Some(&password));
     let pair: sr25519::Pair = account_gen.0;
 
@@ -84,7 +86,7 @@ pub fn add_keypair(name: &str, password: &str, master_password: &str) -> Result<
     Ok(account)
 }
 
-/// Encrypts data using AES-256-CBC algorithm and a key derived from the master_password and writes it to a file
+/// Encrypts data using AES-256-CBC algorithm and master_password and writes it to a file
 ///
 /// # Parameters
 /// * `name: &str` - the name of the file to be written

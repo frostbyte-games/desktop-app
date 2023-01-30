@@ -217,7 +217,6 @@ async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Re
 
     // Get the nonce of the signer account (online).
     let signer_nonce = api.get_nonce().unwrap();
-    println!("[+] Alice's Account Nonce is {}\n", signer_nonce);
 
     // Compose the extrinsic (offline).
     let address = AccountId::from_string(to).unwrap();
@@ -227,7 +226,6 @@ async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Re
         value: amount,
     });
     let xt = api.compose_extrinsic_offline(call, signer_nonce);
-
     println!("[+] Composed Extrinsic:\n {:?}\n", xt);
 
     // Send and watch extrinsic until in block (online).
