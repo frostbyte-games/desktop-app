@@ -24,15 +24,15 @@ mod account_manager;
 mod file_manager;
 mod keystore;
 
+pub type ClientApi = Api<
+    ExtrinsicSigner<sr25519::Pair, MultiSignature, KitchensinkRuntime>,
+    WsRpcClient,
+    GenericExtrinsicParams<PlainTip<u128>, Index, Hash>,
+    KitchensinkRuntime,
+>;
+
 struct Session {
-    client: RwLock<
-        Api<
-            ExtrinsicSigner<sr25519::Pair, MultiSignature, KitchensinkRuntime>,
-            WsRpcClient,
-            GenericExtrinsicParams<PlainTip<u128>, Index, Hash>,
-            KitchensinkRuntime,
-        >,
-    >,
+    client: RwLock<ClientApi>,
     password: RwLock<String>,
 }
 
@@ -102,8 +102,9 @@ async fn create_account<'a>(
     session: State<'a, Session>,
 ) -> Result<account_manager::Account, String> {
     let master_password = session.password.read().await;
+    let mut api = session.client.write().await;
     let account = account_manager
-        .create_account(name, &master_password)
+        .create_account(&mut api, name, &master_password)
         .unwrap();
     account_manager.refresh_accounts().await;
 
@@ -193,7 +194,7 @@ async fn set_active_account<'a>(
 async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Result<(), ()> {
     let amount = match amount.parse::<u128>() {
         Ok(amount) => amount,
-        Err(error) => return Err(()),
+        Err(_error) => return Err(()),
     };
 
     let mut api = session.client.write().await;

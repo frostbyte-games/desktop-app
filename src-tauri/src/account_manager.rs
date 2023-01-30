@@ -7,15 +7,14 @@ use tauri::async_runtime::RwLock;
 
 use crate::{
     file_manager::{get_base_home_path, get_path, FileErrors},
-    keystore,
+    keystore, ClientApi,
 };
 use kitchensink_runtime::{Runtime as KitchensinkRuntime, Signature};
 use secrets::{traits::AsContiguousBytes, Secret};
 use sp_keyring::AccountKeyring;
 use sp_runtime::app_crypto::Ss58Codec;
 use substrate_api_client::{
-    compose_extrinsic, pallet_staking_config::BalanceOf, rpc::WsRpcClient, Api, ExtrinsicSigner,
-    PlainTipExtrinsicParams, SubmitAndWatch, XtStatus,
+    compose_extrinsic, pallet_staking_config::BalanceOf, ExtrinsicSigner, SubmitAndWatch, XtStatus,
 };
 
 #[derive(Serialize)]
@@ -55,20 +54,19 @@ impl AccountManager {
         *accounts = Self::get_available_keypairs().unwrap();
     }
 
-    pub fn create_account(&self, name: &str, master_password: &str) -> Result<Account, String> {
+    pub fn create_account(
+        &self,
+        api: &mut ClientApi,
+        name: &str,
+        master_password: &str,
+    ) -> Result<Account, String> {
         Secret::<[u8; 32]>::random(|password| {
             let password = password.as_bytes();
             let password = hex::encode(password);
 
             let account = keystore::generate_keypair(name, &password, master_password).unwrap();
 
-            let client = WsRpcClient::new("ws://127.0.0.1:9944").unwrap();
             let alice_signer = AccountKeyring::Alice.pair();
-            let mut api =
-                Api::<_, _, PlainTipExtrinsicParams<KitchensinkRuntime>, KitchensinkRuntime>::new(
-                    client,
-                )
-                .unwrap();
             api.set_signer(ExtrinsicSigner::<_, Signature, KitchensinkRuntime>::new(
                 alice_signer.clone(),
             ));
