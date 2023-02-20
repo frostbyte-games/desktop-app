@@ -229,11 +229,14 @@ async fn transfer<'a>(amount: &str, to: &str, session: State<'a, Session>) -> Re
     println!("[+] Composed Extrinsic:\n {:?}\n", xt);
 
     // Send and watch extrinsic until in block (online).
-    let block_hash = api
-        .submit_and_watch_extrinsic_until(xt, XtStatus::InBlock)
-        .unwrap()
-        .block_hash
-        .unwrap();
+    let block_hash = match api.submit_and_watch_extrinsic_until(xt, XtStatus::InBlock) {
+        Ok(block_hash) => block_hash,
+        Err(error) => {
+            println!("[+] Extrinsic got finalized with error: {:?}", error);
+            return Err(());
+        }
+    };
+
     println!("[+] Extrinsic got included in block {:?}", block_hash);
     Ok(())
 }

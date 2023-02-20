@@ -34,7 +34,7 @@
       <form on:submit|preventDefault={unlock}>
         <label for="password">Enter Master Password:</label>
         <input type="password" id="password" bind:value={enteredPassword} />
-        <button on:click={unlock} type="submit">Submit</button>
+        <button on:click={unlock} type="submit">Unlock</button>
       </form>
       <p style="color: red">{errorMessage}</p>
     </div>
